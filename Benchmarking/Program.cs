@@ -17,14 +17,14 @@ var summary = BenchmarkRunner.Run<BenchmarkDriver>();
 public class BenchmarkDriver
 {
 
-    private IEnumerable<DataInstance> data;
+    private readonly IEnumerable<DataInstance> data;
 
     public BenchmarkDriver()
     {
-        using (var reader = new StreamReader("data.csv"))
+        using (var reader = new StreamReader("./data.csv"))
         using (var csv = new CsvReader(reader, CultureInfo.InvariantCulture))
         {
-            data = csv.GetRecords<DataInstance>();
+            data = csv.GetRecords<DataInstance>().ToList();
         }
     }
 
@@ -219,10 +219,10 @@ public class BenchmarkDriver
         ctTable.autoFilter.@ref = myDataRange.FormatAsString();
 
         // auto size columns
-        for (var columnIndex = 0; columnIndex < columnCount; columnIndex++)
-        {
-            sheet.AutoSizeColumn(columnIndex);
-        }
+        //for (var columnIndex = 0; columnIndex < columnCount; columnIndex++)
+        //{
+        //    sheet.AutoSizeColumn(columnIndex);
+        //}
         for (var columnIndex = 0; columnIndex < columnCount; columnIndex++)
         {
             // make room for the filter button and add a bit more
@@ -238,7 +238,7 @@ public class DataInstance
     public string series_ref { get; set; } = string.Empty;
     public string quarter { get; set; } = string.Empty;
     public string hlpi { get; set; } = string.Empty;
-    public float nzhec { get; set; }
+    public string nzhec { get; set; } = string.Empty;
     public string nzhec_name { get; set; } = string.Empty;
     public string nzhec_short { get; set; } = string.Empty;
     public string level { get; set; } = string.Empty;
