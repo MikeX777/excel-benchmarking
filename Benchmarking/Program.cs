@@ -1,35 +1,40 @@
 ﻿using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
+using ClosedXML.Excel;
+using CsvHelper;
 using NPOI.OpenXmlFormats.Spreadsheet;
 using NPOI.SS.UserModel;
 using NPOI.SS.Util;
 using NPOI.XSSF.UserModel;
 using OfficeOpenXml;
+using System.Data;
+using System.Globalization;
+using System.Reflection;
 
 ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
 var summary = BenchmarkRunner.Run<BenchmarkDriver>();
 
 public class BenchmarkDriver
 {
+
+    private IEnumerable<DataInstance> data;
+
     public BenchmarkDriver()
     {
-        using (var reader = new StreamReader("path\\to\\file.csv"))
+        using (var reader = new StreamReader("data.csv"))
         using (var csv = new CsvReader(reader, CultureInfo.InvariantCulture))
         {
-            var records = csv.GetRecords<DataInstance>();
+            data = csv.GetRecords<DataInstance>();
         }
     }
 
     [Benchmark]
     public void NpoiTest()
     {
+        var dataTable = CreateDataTableFromIEnumerable(data);
         using (IWorkbook workbook = new XSSFWorkbook())
         {
-            for (var tableIndex = 0; tableIndex < dataSet.Tables.Count; tableIndex++)
-            {
-                var dt = dataSet.Tables[tableIndex];
-                CreateSheetFromDataTable(workbook, tableIndex, dt);
-            }
+            CreateSheetFromDataTable(workbook, 0, dataTable);
 
             //FileStream sw = File.Create("File.xlsx");
             //workbook.Write(sw, false);
@@ -40,21 +45,123 @@ public class BenchmarkDriver
     [Benchmark]
     public void EPPlusTest()
     {
-        using (var p = ExcelPackage())
+        using (var p = new ExcelPackage())
         {
+            var rowIndex = 2;
             var ws = p.Workbook.Worksheets.Add("export");
+            ws.Cells[1, 1].Value = "hlpi_name";
+            ws.Cells[1, 2].Value = "series_ref";
+            ws.Cells[1, 3].Value = "quarter";
+            ws.Cells[1, 4].Value = "hlpi";
+            ws.Cells[1, 5].Value = "nzhec";
+            ws.Cells[1, 6].Value = "nzhec_name";
+            ws.Cells[1, 7].Value = "nzhec_short";
+            ws.Cells[1, 8].Value = "level";
+            ws.Cells[1, 9].Value = "index";
+            ws.Cells[1, 10].Value = "changeQ";
+            ws.Cells[1, 11].Value = "changeA";
+            foreach (var instance in data)
+            {
+                ws.Cells[rowIndex, 1].Value = instance.hlpi_name;
+                ws.Cells[rowIndex, 2].Value = instance.series_ref;
+                ws.Cells[rowIndex, 3].Value = instance.quarter;
+                ws.Cells[rowIndex, 4].Value = instance.hlpi;
+                ws.Cells[rowIndex, 5].Value = instance.nzhec;
+                ws.Cells[rowIndex, 6].Value = instance.nzhec_name;
+                ws.Cells[rowIndex, 7].Value = instance.nzhec_short;
+                ws.Cells[rowIndex, 8].Value = instance.level;
+                ws.Cells[rowIndex, 9].Value = instance.index;
+                ws.Cells[rowIndex, 10].Value = instance.changeQ;
+                ws.Cells[rowIndex, 11].Value = instance.changeA;
+                rowIndex++;
+            }
         }
     }
 
     [Benchmark]
-    public int TestForEach()
+    public void ClosedXmlTest()
     {
-        var y = 0;
-        foreach (var x in ForeachSubject)
+        using (var workbook = new XLWorkbook())
         {
-            y++;
+            var rowIndex = 2;
+            var ws = workbook.Worksheets.Add("export");
+            ws.Cell(1, 1).Value = "hlpi_name";
+            ws.Cell(1, 2).Value = "series_ref";
+            ws.Cell(1, 3).Value = "quarter";
+            ws.Cell(1, 4).Value = "hlpi";
+            ws.Cell(1, 5).Value = "nzhec";
+            ws.Cell(1, 6).Value = "nzhec_name";
+            ws.Cell(1, 7).Value = "nzhec_short";
+            ws.Cell(1, 8).Value = "level";
+            ws.Cell(1, 9).Value = "index";
+            ws.Cell(1, 10).Value = "changeQ";
+            ws.Cell(1, 11).Value = "changeA";
+            foreach (var instance in data)
+            {
+                ws.Cell(rowIndex, 1).Value = instance.hlpi_name;
+                ws.Cell(rowIndex, 2).Value = instance.series_ref;
+                ws.Cell(rowIndex, 3).Value = instance.quarter;
+                ws.Cell(rowIndex, 4).Value = instance.hlpi;
+                ws.Cell(rowIndex, 5).Value = instance.nzhec;
+                ws.Cell(rowIndex, 6).Value = instance.nzhec_name;
+                ws.Cell(rowIndex, 7).Value = instance.nzhec_short;
+                ws.Cell(rowIndex, 8).Value = instance.level;
+                ws.Cell(rowIndex, 9).Value = instance.index;
+                ws.Cell(rowIndex, 10).Value = instance.changeQ;
+                ws.Cell(rowIndex, 11).Value = instance.changeA;
+                rowIndex++;
+            }
         }
-        return y;
+    }
+
+    private static DataTable CreateDataTableFromIEnumerable<T>(IEnumerable<T> data)
+    {
+        var tb = new DataTable(typeof(T).Name);
+        PropertyInfo[] props = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance);
+
+        foreach (PropertyInfo prop in props)
+        {
+            Type t = GetCoreType(prop.PropertyType);
+            tb.Columns.Add(prop.Name, t);
+        }
+
+        foreach (T item in data)
+        {
+            var values = new object[props.Length];
+
+            for (int i = 0; i < props.Length; i++)
+            {
+                values[i] = props[i].GetValue(item, null);
+            }
+
+            tb.Rows.Add(values);
+        }
+
+        return tb;
+    }
+
+    private static bool IsNullable(Type t)
+    {
+        return !t.IsValueType || (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Nullable<>));
+    }
+
+    private static Type GetCoreType(Type t)
+    {
+        if (t != null && IsNullable(t))
+        {
+            if (!t.IsValueType)
+            {
+                return t;
+            }
+            else
+            {
+                return Nullable.GetUnderlyingType(t);
+            }
+        }
+        else
+        {
+            return t;
+        }
     }
 
     private static void CreateSheetFromDataTable(IWorkbook workbook, int dataTableIndex, DataTable dataTable)
